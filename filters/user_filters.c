@@ -38,6 +38,7 @@ const struct mp_user_filter_entry *af_list[] = {
 #if HAVE_RUBBERBAND
     &af_rubberband,
 #endif
+    &af_chromium,
     &af_lavcac3enc,
     &af_drop,
 };

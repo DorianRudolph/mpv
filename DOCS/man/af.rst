@@ -193,6 +193,10 @@ Available filters are:
         If you want to go up or down by semi-tones, use 1.059463094352953 and
         0.9438743126816935
 
+``chromium``
+    Chromium's WSOLA audio rendering algorithm for high quality audio at
+    different playback speeds.
+
 ``lavfi=graph``
     Filter audio using FFmpeg's libavfilter.
 
