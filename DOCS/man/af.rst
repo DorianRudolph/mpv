@@ -197,6 +197,13 @@ Available filters are:
     Chromium's WSOLA audio rendering algorithm for high quality audio at
     different playback speeds.
 
+    ``min-speed=<speed>``
+        Mute audio if the playback speed is below ``<speed>``. (default: 0.25)
+
+    ``max-speed=<speed>``
+        Mute audio if the playback speed is above ``<speed>``
+        and ``<speed> != 0``. (default: 4.0)
+
 ``lavfi=graph``
     Filter audio using FFmpeg's libavfilter.
 
