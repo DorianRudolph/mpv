@@ -372,19 +372,18 @@ static int compute_optimal_index(
 //
 // 6) Update:write
 
-// Overlap-and-add window size in milliseconds.
-static const int ola_window_size_ms = 20;
-// Size of search interval in milliseconds. The search interval is
-// [-delta delta] around |output_index| * |playback_rate|. So the search
-// interval is 2 * delta.
-static const int wsola_search_interval_ms = 30;
-
 struct f_opts {
     // Max/min supported playback rates for fast/slow audio. Audio outside of these
     // ranges are muted.
     // Audio at these speeds would sound better under a frequency domain algorithm.
     float min_playback_rate;
     float max_playback_rate;
+    // Overlap-and-add window size in milliseconds.
+    float ola_window_size_ms;
+    // Size of search interval in milliseconds. The search interval is
+    // [-delta delta] around |output_index| * |playback_rate|. So the search
+    // interval is 2 * delta.
+    float wsola_search_interval_ms;
 };
 
 struct priv {
@@ -396,7 +395,7 @@ struct priv {
     bool sent_final;
     struct mp_aframe *pending;
     bool initialized;
-    double speed;
+    float speed;
     double frame_delay;
 
     // Number of channels in audio stream.
@@ -753,7 +752,7 @@ static bool frames_available(struct priv *p)
     return can_perform_wsola(p) || p->num_complete_frames > 0;
 }
 
-static bool init_chromium(struct mp_filter *f);
+static bool init_scaletempo2(struct mp_filter *f);
 static void reset(struct mp_filter *f);
 
 static void process(struct mp_filter *f)
@@ -787,7 +786,7 @@ static void process(struct mp_filter *f)
                 mp_pin_in_write(f->ppins[1], MP_EOF_FRAME);
                 return;
             }
-            if (!init_chromium(f))
+            if (!init_scaletempo2(f))
                 goto error;
         }
 
@@ -855,7 +854,6 @@ error:
     mp_filter_internal_mark_failed(f);
 }
 
-
 // Return a "periodic" Hann window. This is the first L samples of an L+1
 // Hann window. It is perfect reconstruction for overlap-and-add.
 static void get_symmetric_hanning_window(int window_length, float* window)
@@ -865,7 +863,7 @@ static void get_symmetric_hanning_window(int window_length, float* window)
     window[n] = 0.5f * (1.0f - cosf(n * scale));
 }
 
-static bool init_chromium(struct mp_filter *f)
+static bool init_scaletempo2(struct mp_filter *f)
 {
     struct priv *p = f->priv;
 
@@ -884,9 +882,10 @@ static bool init_chromium(struct mp_filter *f)
     p->channels = mp_aframe_get_channels(p->pending);
 
     p->samples_per_second = mp_aframe_get_rate(p->pending);
-    p->num_candidate_blocks = (wsola_search_interval_ms * p->samples_per_second)
-        / 1000;
-    p->ola_window_size = ola_window_size_ms * p->samples_per_second / 1000;
+    p->num_candidate_blocks = (int)(p->opts->wsola_search_interval_ms 
+        * p->samples_per_second / 1000);
+    p->ola_window_size = (int)(p->opts->ola_window_size_ms 
+        * p->samples_per_second / 1000);
     // Make sure window size in an even number.
     p->ola_window_size += p->ola_window_size & 1;
     p->ola_hop_size = p->ola_window_size / 2;
@@ -946,11 +945,11 @@ static bool init_chromium(struct mp_filter *f)
 
 static bool command(struct mp_filter *f, struct mp_filter_command *cmd)
 {
-    struct priv *s = f->priv;
+    struct priv *p = f->priv;
 
     switch (cmd->type) {
     case MP_FILTER_COMMAND_SET_SPEED:
-        s->speed = cmd->speed;
+        p->speed = cmd->speed;
         return true;
     }
 
@@ -989,8 +988,8 @@ static void destroy(struct mp_filter *f)
     talloc_free(p->pending);
 }
 
-static const struct mp_filter_info af_drop_filter = {
-    .name = "chromium",
+static const struct mp_filter_info af_scaletempo2_filter = {
+    .name = "scaletempo2",
     .priv_size = sizeof(struct priv),
     .process = process,
     .command = command,
@@ -998,9 +997,10 @@ static const struct mp_filter_info af_drop_filter = {
     .destroy = destroy,
 };
 
-static struct mp_filter *af_chromium_create(struct mp_filter *parent, void *options)
+static struct mp_filter *af_scaletempo2_create(
+    struct mp_filter *parent, void *options)
 {
-    struct mp_filter *f = mp_filter_create(parent, &af_drop_filter);
+    struct mp_filter *f = mp_filter_create(parent, &af_scaletempo2_filter);
     if (!f) {
         talloc_free(options);
         return NULL;
@@ -1034,17 +1034,23 @@ static struct mp_filter *af_chromium_create(struct mp_filter *parent, void *opti
 }
 
 #define OPT_BASE_STRUCT struct f_opts
-const struct mp_user_filter_entry af_chromium = {
+const struct mp_user_filter_entry af_scaletempo2 = {
     .desc = {
-        .description =
-            "Change audio speed using Chromium's WSOLA audio rendering algorithm",
-        .name = "chromium",
+        .description = "Scale audio tempo while maintaining pitch"
+            " (filter ported from chromium)",
+        .name = "scaletempo2",
         .priv_size = sizeof(OPT_BASE_STRUCT),
         .priv_defaults = &(const OPT_BASE_STRUCT) {
             .min_playback_rate = 0.25,
-            .max_playback_rate = 4
+            .max_playback_rate = 4.0,
+            .ola_window_size_ms = 20,
+            .wsola_search_interval_ms = 30,
         },
         .options = (const struct m_option[]) {
+            {"search-interval", 
+                OPT_FLOAT(wsola_search_interval_ms), M_RANGE(1, 1000)},
+            {"window-size",
+                OPT_FLOAT(ola_window_size_ms), M_RANGE(1, 1000)},
             {"min-speed",
                 OPT_FLOAT(min_playback_rate), M_RANGE(0, FLT_MAX)},
             {"max-speed",
@@ -1052,5 +1058,5 @@ const struct mp_user_filter_entry af_chromium = {
             {0}
         }
     },
-    .create = af_chromium_create,
+    .create = af_scaletempo2_create,
 };

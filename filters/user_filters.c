@@ -34,11 +34,11 @@ const struct mp_user_filter_entry *af_list[] = {
     &af_lavfi,
     &af_lavfi_bridge,
     &af_scaletempo,
+    &af_scaletempo2,
     &af_format,
 #if HAVE_RUBBERBAND
     &af_rubberband,
 #endif
-    &af_chromium,
     &af_lavcac3enc,
     &af_drop,
 };

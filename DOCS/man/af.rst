@@ -161,6 +161,28 @@ Available filters are:
             Would play media at 1.2x normal speed, with audio at normal pitch.
             Changing playback speed would change pitch, leaving audio tempo at
             1.2x.
+    
+``scaletempo2[=option1:option2:...]``
+    Scales audio tempo without altering pitch.
+    The algorithm is ported from chromium and uses the 
+    Waveform Similarity Overlap-and-add (WSOLA) method.
+    It seems to achieve a higher audio quality than scaletempo and rubberband.
+
+    By default, the ``search-interval`` and ``window-size`` parameters 
+    have the same values as in chromium.
+
+    ``min-speed=<speed>``
+        Mute audio if the playback speed is below ``<speed>``. (default: 0.25)
+
+    ``max-speed=<speed>``
+        Mute audio if the playback speed is above ``<speed>``
+        and ``<speed> != 0``. (default: 4.0)
+
+    ``search-interval=<amount>``
+        Length in milliseconds to search for best overlap position. (default: 30)
+    
+    ``window-size=<amount>``
+        Length in milliseconds of the overlap-and-add window. (default: 20)
 
 ``rubberband``
     High quality pitch correction with librubberband. This can be used in place
@@ -192,17 +214,6 @@ Available filters are:
         example: 0.5 to go down by an octave, 1.5 to go up by a perfect fifth.
         If you want to go up or down by semi-tones, use 1.059463094352953 and
         0.9438743126816935
-
-``chromium``
-    Chromium's WSOLA audio rendering algorithm for high quality audio at
-    different playback speeds.
-
-    ``min-speed=<speed>``
-        Mute audio if the playback speed is below ``<speed>``. (default: 0.25)
-
-    ``max-speed=<speed>``
-        Mute audio if the playback speed is above ``<speed>``
-        and ``<speed> != 0``. (default: 4.0)
 
 ``lavfi=graph``
     Filter audio using FFmpeg's libavfilter.
